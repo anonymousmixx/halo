@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bagikan Lokasi Saya</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;margin:0;padding:2rem;background:#f7f7f7;color:#111}
+    .card{max-width:520px;margin:auto;background:#fff;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.08);padding:1.5rem}
+    h1{font-size:1.2rem;margin:0 0 .75rem}
+    p{margin:.5rem 0 1rem;color:#444}
+    button{width:100%;padding:1rem;border:0;border-radius:12px;font-weight:600;font-size:1rem;cursor:pointer}
+    .primary{background:#0a7cff;color:#fff}
+    .secondary{background:#eee;color:#111;margin-top:.5rem}
+    .muted{font-size:.85rem;color:#666;margin-top:1rem}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .ok{color:#0a7cff}
+    .err{color:#d11}
+    small{display:block;margin-top:1rem;color:#555}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Bagikan Lokasi Saya</h1>
+    <p>Dengan menekan tombol di bawah, browser akan meminta izin untuk mengakses lokasi Anda. Jika disetujui, aplikasi akan menyiapkan pesan WhatsApp berisi titik lokasi ke pemilik tautan.</p>
+    <button class="primary" id="shareBtn">Bagikan Lokasi Sekarang</button>
+    <button class="secondary" id="copyBtn">Salin Koordinat (tanpa WhatsApp)</button>
+    <div id="status" class="muted"></div>
+    <div id="coords" class="mono"></div>
+  </div>
+
+  <script>
+    const WA_NUMBER = "628122742666"; // nomor WA tujuan
+    const statusEl = document.getElementById("status");
+    const coordsEl = document.getElementById("coords");
+    const shareBtn = document.getElementById("shareBtn");
+    const copyBtn = document.getElementById("copyBtn");
+
+    function setStatus(msg, type="") {
+      statusEl.textContent = msg;
+      statusEl.className = "muted " + (type || "");
+    }
+
+    function formatMsg(lat, lon, acc) {
+      const gmaps = `https://maps.google.com/?q=${lat},${lon}&z=16`;
+      return `Halo, ini lokasi saya:\n• Koordinat: ${lat}, ${lon}\n• Akurasi: ±${Math.round(acc)} m\n• Peta: ${gmaps}`;
+    }
+
+    function handlePosition(pos, sendToWhatsApp=false) {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const txt = formatMsg(latitude.toFixed(6), longitude.toFixed(6), accuracy);
+      coordsEl.textContent = txt;
+      setStatus("Lokasi berhasil diambil.", "ok");
+
+      if (sendToWhatsApp) {
+        if (!WA_NUMBER || !/^\d{8,15}$/.test(WA_NUMBER)) {
+          setStatus("Nomor WhatsApp tujuan belum diatur dengan benar.", "err");
+          return;
+        }
+        const wa = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(txt)}`;
+        window.location.href = wa;
+      }
+    }
+
+    function handleError(err) {
+      let msg = "Gagal mengambil lokasi.";
+      if (err.code === 1) msg = "Akses lokasi ditolak. Mohon izinkan lokasi di browser.";
+      if (err.code === 2) msg = "Lokasi tidak tersedia. Coba aktifkan GPS / koneksi internet.";
+      if (err.code === 3) msg = "Permintaan lokasi melebihi batas waktu. Coba lagi.";
+      setStatus(msg, "err");
+    }
+
+    const geoOpts = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+
+    shareBtn.addEventListener("click", () => {
+      setStatus("Meminta izin lokasi…");
+      if (!("geolocation" in navigator)) {
+        setStatus("Browser tidak mendukung Geolocation.", "err");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => handlePosition(pos, true),
+        handleError,
+        geoOpts
+      );
+    });
+
+    copyBtn.addEventListener("click", () => {
+      setStatus("Meminta izin lokasi…");
+      if (!("geolocation" in navigator)) {
+        setStatus("Browser tidak mendukung Geolocation.", "err");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          handlePosition(pos, false);
+          try {
+            await navigator.clipboard.writeText(coordsEl.textContent);
+            setStatus("Koordinat disalin ke clipboard. Tempelkan di chat pilihan Anda.", "ok");
+          } catch {
+            setStatus("Tidak bisa menyalin otomatis. Salin manual dari teks di atas.", "err");
+          }
+        },
+        handleError,
+        geoOpts
+      );
+    });
+  </script>
+</body>
+</html>
